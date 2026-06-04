@@ -307,17 +307,18 @@ class StepSimulatorApp:
         self.qr_lbl.pack(pady=4)
 
         # — Import instructions —
-        ins = ttk.LabelFrame(parent, text="📲  导入到 iPhone 的步骤", padding=8)
+        ins = ttk.LabelFrame(parent, text="📲  不需要任何 App！直接手动输入到「健康」", padding=8)
         ins.pack(fill=tk.X, padx=10, pady=(0, 8))
         ttk.Label(
             ins,
             text=(
-                "① App Store 安装「Health Import」（免费，Simon Kern 开发）\n"
-                "② 点上方「开启传输服务器」→ 用 iPhone 相机扫描二维码\n"
-                "③ Safari 打开后 → 点文件 → 选「用 Health Import 打开」\n"
-                "④ 在 Health Import 里点「导入」→ 允许访问健康数据\n"
-                "⑤ 打开「健康」App → 步数，确认数据已写入\n"
-                "⑥ 打开支付宝 → 运动，等 1~3 分钟后刷新查看"
+                "点「生成步数文件」后，下方会显示要输入的数字。\n"
+                "然后按以下步骤在 iPhone 上操作（无需安装任何额外 App）：\n\n"
+                "① 打开 iPhone 自带「健康」App（白色+红心图标）\n"
+                "② 底部点「浏览」→ 搜索「步数」→ 点进去\n"
+                "③ 右上角点「+」（添加数据）\n"
+                "④ 按下方表格逐条输入时间和步数，每条点「添加」\n"
+                "⑤ 打开支付宝 → 运动 → 下拉刷新，等 1~3 分钟"
             ),
             justify=tk.LEFT,
             font=("Microsoft YaHei", 10),
@@ -374,9 +375,24 @@ class StepSimulatorApp:
         self._log(f"✅ 已生成 {dur} 分钟步数数据")
         self._log(f"   {rows[0]['startDate']}  →  {rows[-1]['endDate']}")
         self._log(f"   总步数：{total:,}  平均：{total // dur} 步/分钟")
-        self._log(f"   文件路径：{out}")
+        self._log("═" * 48)
+        self._log("📱 在 iPhone「健康」App 手动输入（无需任何额外App）")
+        self._log("   健康App → 浏览 → 步数 → 右上角「+」")
         self._log("─" * 48)
-        self._log("👉 点「开启传输服务器」→ 用 iPhone 扫描二维码")
+
+        # Show manual entry table (one row per 30 minutes)
+        interval = 30
+        entry_num = 1
+        for i in range(0, dur, interval):
+            chunk = rows[i : i + interval]
+            chunk_steps = sum(r["value"] for r in chunk)
+            chunk_time = chunk[0]["startDate"][11:16]  # HH:MM
+            self._log(f"   第{entry_num}条  时间: {chunk_time}    步数: {chunk_steps:,}")
+            entry_num += 1
+
+        self._log("─" * 48)
+        self._log(f"   ✨ 嫌麻烦？一次输完：时间 {rows[0]['startDate'][11:16]}  步数 {total:,}")
+        self._log("═" * 48)
         self.srv_btn.config(state=tk.NORMAL)
 
     def toggle_server(self):
