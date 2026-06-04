@@ -2,13 +2,13 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>校园跑路线坐标生成器</title>
+<title>校园跑路线生成器</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei",sans-serif;display:flex;height:100vh;background:#111}
-#sidebar{width:340px;min-width:340px;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;gap:10px;padding:14px;overflow-y:auto}
+#sidebar{width:360px;min-width:360px;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;gap:10px;padding:14px;overflow-y:auto}
 h1{font-size:15px;color:#58a6ff;text-align:center;padding:4px 0 8px;border-bottom:1px solid #21262d}
 .card{background:#161b22;border-radius:8px;padding:12px;border:1px solid #21262d}
 .card h3{font-size:13px;color:#79c0ff;margin-bottom:8px}
@@ -18,29 +18,29 @@ input{width:100%;padding:6px 9px;border-radius:5px;border:1px solid #30363d;back
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .btn{width:100%;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit}
 .btn-green{background:#238636;color:#fff;font-weight:bold;font-size:14px;padding:11px}
+.btn-green:hover{background:#2ea043}
+.btn-green:disabled{background:#1a2e1a;color:#4a6a4a;cursor:not-allowed}
 .btn-gray{background:#21262d;color:#c9d1d9;border:1px solid #30363d}
+.btn-gray:hover{background:#30363d}
+.btn-blue{background:#1f6feb;color:#fff;font-weight:bold}
+.btn-blue:hover{background:#388bfd}
 #map{flex:1}
-
-/* Coordinate table */
-#coord-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-#coord-table th{background:#21262d;color:#79c0ff;padding:5px 4px;text-align:left;font-weight:normal}
-#coord-table td{padding:4px;border-bottom:1px solid #21262d;color:#e6edf3;font-family:Consolas,monospace;font-size:11px}
-#coord-table tr:hover td{background:#1c2730}
-.copy-btn{background:#1f6feb;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;white-space:nowrap}
-.copy-btn:hover{background:#388bfd}
-.copy-btn.ok{background:#238636}
-
-#all-coords-box{background:#21262d;border-radius:5px;padding:8px;font-size:11px;font-family:Consolas;color:#e6edf3;max-height:120px;overflow-y:auto;white-space:pre;line-height:1.6;margin-top:6px}
+#route-info{background:#0d1117;border-radius:5px;padding:10px;margin-top:8px;font-size:12px;line-height:1.8;display:none}
+#route-info b{color:#58a6ff}
+.step-box{background:#1a2332;border:1px solid #1f6feb;border-radius:8px;padding:12px}
+.step-box h3{color:#f78166;font-size:13px;margin-bottom:8px}
+.step-box .tip{color:#c9d1d9;line-height:2}
+.step-num{color:#f78166;font-weight:bold}
 </style>
 </head>
 <body>
 <div id="sidebar">
-  <h1>校园跑路线坐标生成器</h1>
+  <h1>校园跑路线生成器</h1>
 
   <div class="card">
-    <h3>第一步：在卫星地图上标记操场路线</h3>
-    <p class="tip">找到你的操场 → 沿跑道边缘点击 4~6 个点（点太多反而麻烦）</p>
-    <label>已标记 <b id="pt-count">0</b> 个点</label>
+    <h3>第一步：在地图上画操场跑道</h3>
+    <p class="tip">找到你的操场，沿跑道边缘点 4~6 个点围成一圈。最后一个点会自动连回起点。</p>
+    <label>已标记 <b id="pt-count" style="color:#58a6ff;font-size:14px">0</b> 个点</label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
       <button class="btn btn-gray" onclick="undoLast()">撤销上一点</button>
       <button class="btn btn-gray" onclick="clearAll()">清除全部</button>
@@ -48,36 +48,38 @@ input{width:100%;padding:6px 9px;border-radius:5px;border:1px solid #30363d;back
   </div>
 
   <div class="card">
-    <h3>第二步：坐标列表（复制到 3uTools）</h3>
-    <p class="tip">点击每行的「复制」按钮，在 3uTools 里粘贴</p>
-    <table id="coord-table">
-      <thead><tr><th>点</th><th>纬度</th><th>经度</th><th></th></tr></thead>
-      <tbody id="coord-body"><tr><td colspan="4" style="color:#484f58;padding:8px;text-align:center">先在地图上点几个点</td></tr></tbody>
-    </table>
-    <button class="btn btn-gray" onclick="copyAll()" style="margin-top:8px;font-size:12px">复制全部坐标（纯文本）</button>
-    <div id="all-coords-box" style="display:none"></div>
+    <h3>第二步：设置跑步参数</h3>
+    <div class="row2">
+      <div><label>跑几圈</label><input type="number" id="laps" value="4" min="1" max="30"></div>
+      <div><label>配速 (分/公里)</label><input type="number" id="pace" value="6.0" min="3" max="12" step="0.5"></div>
+    </div>
+    <div style="margin-top:8px">
+      <label>每次换坐标间隔 (秒)</label>
+      <input type="number" id="interval" value="30" min="10" max="120" step="5">
+      <span class="tip">建议 20~30 秒</span>
+    </div>
+    <button class="btn btn-green" onclick="generateRoute()" style="margin-top:10px" id="gen-btn" disabled>生成跑步路线</button>
+    <div id="route-info"></div>
   </div>
 
-  <div class="card">
-    <h3>第三步：3uTools 操作步骤</h3>
-    <p class="tip" style="color:#e6edf3;line-height:2">
-      <b style="color:#f78166">① 连接 iPhone，打开 Virtual Location</b><br>
-      <b style="color:#f78166">② 点右边的「Cyclic Modification」单选按钮</b><br>
-      <b style="color:#f78166">③ 界面左侧会出现位置列表</b><br>
-      <b style="color:#f78166">④ 把上面每个坐标依次输入：</b><br>
-      &nbsp;&nbsp;• 搜索栏输入「纬度,经度」格式<br>
-      &nbsp;&nbsp;• 或在地图上找到操场点击定位<br>
-      &nbsp;&nbsp;• 点「Add to list」或「+」加入列表<br>
-      <b style="color:#f78166">⑤ 把时间间隔改为 30 秒</b><br>
-      <b style="color:#f78166">⑥ 点「Start」开始循环</b><br>
-      <b style="color:#f78166">⑦ 打开支付宝校园跑打卡</b>
-    </p>
+  <div class="card" id="download-card" style="display:none">
+    <h3>第三步：下载路线文件</h3>
+    <button class="btn btn-blue" onclick="downloadRoute()" style="margin-bottom:8px">下载 route.json</button>
+    <p class="tip">下载后，把 route.json 放到和 auto_run.bat 同一个文件夹里</p>
   </div>
 
-  <div class="card" style="background:#1a2332;border-color:#1f6feb">
-    <h3 style="color:#f78166">3uTools 找不到 Cyclic Modification？</h3>
+  <div class="step-box" id="help-card" style="display:none">
+    <h3>怎么用</h3>
     <p class="tip">
-      打开 3uTools 后截图发过来，我根据你的界面告诉你具体点哪里。
+      <span class="step-num">1.</span> 下载 route.json（上面的按钮）<br>
+      <span class="step-num">2.</span> 把 route.json、auto_run.bat、auto_gps.ps1 放同一文件夹<br>
+      <span class="step-num">3.</span> 打开爱思助手 - 虚拟定位<br>
+      <span class="step-num">4.</span> 双击 auto_run.bat<br>
+      <span class="step-num">5.</span> 按提示把鼠标移到爱思助手的3个位置校准<br>
+      <span class="step-num">6.</span> 打开支付宝校园跑，按回车开始<br>
+      <span class="step-num">7.</span> 脚本自动帮你换定位，跑完自动停<br>
+      <br>
+      <span style="color:#f0883e">注意：运行期间不要移动爱思助手窗口，不要碰鼠标</span>
     </p>
   </div>
 </div>
@@ -87,13 +89,14 @@ input{width:100%;padding:6px 9px;border-radius:5px;border:1px solid #30363d;back
 <script>
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,attribution:'Esri'});
 const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
-const map=L.map('map',{layers:[sat]}).setView([30.5,114.3],17);
-L.control.layers({"卫星图（推荐）":sat,"普通地图":osm},{},{position:'topright'}).addTo(map);
-map.locate({setView:true,maxZoom:18});
+const map=L.map('map',{layers:[sat]}).setView([36.44,116.02],17);
+L.control.layers({"卫星图":sat,"普通地图":osm},{},{position:'topright'}).addTo(map);
 
 let waypoints=[],markers=[];
+let routeData=null;
 const trackLine=L.polyline([],{color:'#58a6ff',weight:3}).addTo(map);
 const closeLine=L.polyline([],{color:'#f78166',weight:2,dashArray:'6 4'}).addTo(map);
+let routeMarkers=[];
 
 map.on('click',e=>addPt(e.latlng.lat,e.latlng.lng));
 
@@ -107,54 +110,103 @@ function addPt(lat,lon){
   refresh();
 }
 function undoLast(){if(!waypoints.length)return;waypoints.pop();map.removeLayer(markers.pop());refresh()}
-function clearAll(){waypoints=[];markers.forEach(m=>map.removeLayer(m));markers=[];refresh()}
+function clearAll(){waypoints=[];markers.forEach(m=>map.removeLayer(m));markers=[];routeMarkers.forEach(m=>map.removeLayer(m));routeMarkers=[];refresh()}
 
 function refresh(){
   trackLine.setLatLngs(waypoints.map(p=>L.latLng(p[0],p[1])));
   closeLine.setLatLngs(waypoints.length>=2?[waypoints[waypoints.length-1],waypoints[0]]:[]);
   document.getElementById('pt-count').textContent=waypoints.length;
-  renderTable();
+  document.getElementById('gen-btn').disabled=waypoints.length<3;
+  routeData=null;
+  document.getElementById('route-info').style.display='none';
+  document.getElementById('download-card').style.display='none';
+  document.getElementById('help-card').style.display='none';
 }
 
-function renderTable(){
-  const tbody=document.getElementById('coord-body');
-  if(!waypoints.length){
-    tbody.innerHTML='<tr><td colspan="4" style="color:#484f58;padding:8px;text-align:center">先在地图上点几个点</td></tr>';
-    return;
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000,p1=lat1*Math.PI/180,p2=lat2*Math.PI/180;
+  const dp=(lat2-lat1)*Math.PI/180,dl=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function generateRoute(){
+  if(waypoints.length<3){alert('至少标记3个点');return}
+  const laps=parseInt(document.getElementById('laps').value)||4;
+  const paceMin=parseFloat(document.getElementById('pace').value)||6.0;
+  const intervalSec=parseInt(document.getElementById('interval').value)||30;
+  const speed=1000/(paceMin*60);
+  const spacing=speed*intervalSec;
+
+  let fullPath=[];
+  for(let lap=0;lap<laps;lap++){
+    for(let i=0;i<waypoints.length;i++) fullPath.push(waypoints[i]);
   }
-  tbody.innerHTML=waypoints.map((p,i)=>`
-    <tr>
-      <td>点 ${i+1}</td>
-      <td>${p[0].toFixed(6)}</td>
-      <td>${p[1].toFixed(6)}</td>
-      <td><button class="copy-btn" id="cbtn${i}" onclick="copyRow(${i})">复制</button></td>
-    </tr>
-  `).join('');
-}
+  fullPath.push(waypoints[0]);
 
-function copyRow(i){
-  const p=waypoints[i];
-  const text=`${p[0].toFixed(6)},${p[1].toFixed(6)}`;
-  navigator.clipboard.writeText(text).then(()=>{
-    const btn=document.getElementById('cbtn'+i);
-    btn.textContent='已复制';btn.classList.add('ok');
-    setTimeout(()=>{btn.textContent='复制';btn.classList.remove('ok')},1500);
-  }).catch(()=>{
-    prompt('请手动复制：',text);
+  let segments=[], totalDist=0;
+  for(let i=0;i<fullPath.length-1;i++){
+    const d=haversine(fullPath[i][0],fullPath[i][1],fullPath[i+1][0],fullPath[i+1][1]);
+    segments.push({from:fullPath[i],to:fullPath[i+1],dist:d});
+    totalDist+=d;
+  }
+
+  let points=[{lat:fullPath[0][0],lon:fullPath[0][1]}];
+  let distSinceLast=0;
+  for(const seg of segments){
+    let segProgress=0, segRemain=seg.dist;
+    while(segRemain>0.01){
+      let need=spacing-distSinceLast;
+      if(need<=segRemain){
+        segProgress+=need;
+        let t=Math.min(segProgress/seg.dist,1);
+        points.push({
+          lat:seg.from[0]+t*(seg.to[0]-seg.from[0]),
+          lon:seg.from[1]+t*(seg.to[1]-seg.from[1])
+        });
+        distSinceLast=0;
+        segRemain-=need;
+      }else{
+        distSinceLast+=segRemain;
+        segRemain=0;
+      }
+    }
+  }
+
+  const distKm=Math.round(totalDist/10)/100;
+  const totalSec=points.length*intervalSec;
+  const mins=Math.floor(totalSec/60);
+  const secs=totalSec%60;
+
+  routeData={points,interval:intervalSec,laps,distance_km:distKm,pace_min_km:paceMin,total_points:points.length};
+
+  document.getElementById('route-info').style.display='block';
+  document.getElementById('route-info').innerHTML=
+    '<b>'+laps+'</b> 圈, 约 <b>'+distKm+'</b> km<br>'+
+    '配速 <b>'+paceMin+'</b> 分/公里, 每 <b>'+intervalSec+'</b> 秒换一次坐标<br>'+
+    '共 <b>'+points.length+'</b> 个GPS点, 预计 <b>'+mins+'分'+(secs>0?secs+'秒':'')+'</b>';
+  document.getElementById('download-card').style.display='block';
+  document.getElementById('help-card').style.display='block';
+
+  routeMarkers.forEach(m=>map.removeLayer(m));
+  routeMarkers=[];
+  points.forEach((p,i)=>{
+    routeMarkers.push(
+      L.circleMarker([p.lat,p.lon],{radius:3,color:'#f78166',fillColor:'#f78166',fillOpacity:0.7,weight:1})
+      .bindTooltip('GPS点 '+(i+1),{direction:'top'})
+      .addTo(map)
+    );
   });
 }
 
-function copyAll(){
-  if(!waypoints.length){alert('请先在地图上标记点');return}
-  const lines=waypoints.map((p,i)=>`点${i+1}: ${p[0].toFixed(6)}, ${p[1].toFixed(6)}`).join('\n');
-  const box=document.getElementById('all-coords-box');
-  box.style.display='block';
-  box.textContent=lines;
-  navigator.clipboard.writeText(lines).then(()=>{
-    alert('已复制到剪贴板！\n\n'+lines);
-  }).catch(()=>{
-    box.style.display='block';
-  });
+function downloadRoute(){
+  if(!routeData){alert('请先生成路线');return}
+  const blob=new Blob([JSON.stringify(routeData,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='route.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 </script>
 </body>
