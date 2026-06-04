@@ -2,66 +2,82 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<title>校园跑 GPS 路线生成器</title>
+<title>校园跑路线坐标生成器</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"Microsoft YaHei",sans-serif;display:flex;height:100vh;overflow:hidden;background:#111}
-#sidebar{width:310px;min-width:310px;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;gap:10px;padding:14px;overflow-y:auto}
-h1{font-size:16px;color:#58a6ff;text-align:center;padding:4px 0 8px;border-bottom:1px solid #21262d}
+body{font-family:"Microsoft YaHei",sans-serif;display:flex;height:100vh;background:#111}
+#sidebar{width:340px;min-width:340px;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;gap:10px;padding:14px;overflow-y:auto}
+h1{font-size:15px;color:#58a6ff;text-align:center;padding:4px 0 8px;border-bottom:1px solid #21262d}
 .card{background:#161b22;border-radius:8px;padding:12px;border:1px solid #21262d}
 .card h3{font-size:13px;color:#79c0ff;margin-bottom:8px}
 .tip{font-size:12px;color:#8b949e;line-height:1.7}
-label{font-size:12px;color:#8b949e;display:block;margin:8px 0 3px}
+label{font-size:12px;color:#8b949e;display:block;margin:6px 0 3px}
 input{width:100%;padding:6px 9px;border-radius:5px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:13px}
-input:focus{outline:none;border-color:#58a6ff}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.btn{width:100%;padding:10px;border-radius:6px;border:none;font-size:14px;cursor:pointer;font-family:inherit;font-weight:bold}
-.btn:hover{filter:brightness(1.15)}
-.btn-green{background:#238636;color:#fff}
-.btn-blue{background:#1f6feb;color:#fff}
-.btn-gray{background:#21262d;color:#c9d1d9;border:1px solid #30363d;font-weight:normal;font-size:12px}
-#wp-list{font-size:11px;color:#8b949e;max-height:60px;overflow-y:auto;margin-top:6px}
-#wp-list li{padding:1px 0;list-style:none}
+.btn{width:100%;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit}
+.btn-green{background:#238636;color:#fff;font-weight:bold;font-size:14px;padding:11px}
+.btn-gray{background:#21262d;color:#c9d1d9;border:1px solid #30363d}
 #map{flex:1}
-.ok{color:#3fb950;font-weight:bold}
+
+/* Coordinate table */
+#coord-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+#coord-table th{background:#21262d;color:#79c0ff;padding:5px 4px;text-align:left;font-weight:normal}
+#coord-table td{padding:4px;border-bottom:1px solid #21262d;color:#e6edf3;font-family:Consolas,monospace;font-size:11px}
+#coord-table tr:hover td{background:#1c2730}
+.copy-btn{background:#1f6feb;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;white-space:nowrap}
+.copy-btn:hover{background:#388bfd}
+.copy-btn.ok{background:#238636}
+
+#all-coords-box{background:#21262d;border-radius:5px;padding:8px;font-size:11px;font-family:Consolas;color:#e6edf3;max-height:120px;overflow-y:auto;white-space:pre;line-height:1.6;margin-top:6px}
 </style>
 </head>
 <body>
 <div id="sidebar">
-  <h1>🏃 校园跑路线生成器</h1>
+  <h1>校园跑路线坐标生成器</h1>
 
   <div class="card">
-    <h3>📍 在卫星地图上画操场路线</h3>
-    <p class="tip">找到你的操场 → <b>沿跑道边缘依次点 4~8 个点</b></p>
-    <label>已标记 <b id="pt-count">0</b> 个点 ｜ 一圈约 <b id="lap-est">—</b> 米</label>
-    <ul id="wp-list"></ul>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
-      <button class="btn btn-gray" onclick="undoLast()">↩ 撤销</button>
-      <button class="btn btn-gray" onclick="clearAll()">🗑 清除</button>
+    <h3>第一步：在卫星地图上标记操场路线</h3>
+    <p class="tip">找到你的操场 → 沿跑道边缘点击 4~6 个点（点太多反而麻烦）</p>
+    <label>已标记 <b id="pt-count">0</b> 个点</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+      <button class="btn btn-gray" onclick="undoLast()">撤销上一点</button>
+      <button class="btn btn-gray" onclick="clearAll()">清除全部</button>
     </div>
   </div>
 
   <div class="card">
-    <h3>⚙️ 设置参数</h3>
-    <div class="row2">
-      <div><label>总距离（公里）</label><input type="number" id="total-dist" value="1.4" step="0.1" min="0.4"></div>
-      <div><label>配速（分/公里）</label><input type="number" id="pace" value="6.5" step="0.1" min="3" max="15"></div>
-    </div>
-    <label>圈数：<b id="laps-result">—</b> ｜ 时长：<b id="time-est">—</b></label>
+    <h3>第二步：坐标列表（复制到 3uTools）</h3>
+    <p class="tip">点击每行的「复制」按钮，在 3uTools 里粘贴</p>
+    <table id="coord-table">
+      <thead><tr><th>点</th><th>纬度</th><th>经度</th><th></th></tr></thead>
+      <tbody id="coord-body"><tr><td colspan="4" style="color:#484f58;padding:8px;text-align:center">先在地图上点几个点</td></tr></tbody>
+    </table>
+    <button class="btn btn-gray" onclick="copyAll()" style="margin-top:8px;font-size:12px">复制全部坐标（纯文本）</button>
+    <div id="all-coords-box" style="display:none"></div>
   </div>
 
-  <button class="btn btn-green" onclick="generateJSON()">📥 生成路线文件（给模拟器用）</button>
-  <button class="btn btn-blue" onclick="generateGPX()" style="font-size:12px;padding:7px;font-weight:normal">📥 生成 GPX（备用方案给其他工具用）</button>
-
   <div class="card">
-    <h3>📱 下一步操作</h3>
+    <h3>第三步：3uTools 操作步骤</h3>
+    <p class="tip" style="color:#e6edf3;line-height:2">
+      <b style="color:#f78166">① 连接 iPhone，打开 Virtual Location</b><br>
+      <b style="color:#f78166">② 点右边的「Cyclic Modification」单选按钮</b><br>
+      <b style="color:#f78166">③ 界面左侧会出现位置列表</b><br>
+      <b style="color:#f78166">④ 把上面每个坐标依次输入：</b><br>
+      &nbsp;&nbsp;• 搜索栏输入「纬度,经度」格式<br>
+      &nbsp;&nbsp;• 或在地图上找到操场点击定位<br>
+      &nbsp;&nbsp;• 点「Add to list」或「+」加入列表<br>
+      <b style="color:#f78166">⑤ 把时间间隔改为 30 秒</b><br>
+      <b style="color:#f78166">⑥ 点「Start」开始循环</b><br>
+      <b style="color:#f78166">⑦ 打开支付宝校园跑打卡</b>
+    </p>
+  </div>
+
+  <div class="card" style="background:#1a2332;border-color:#1f6feb">
+    <h3 style="color:#f78166">3uTools 找不到 Cyclic Modification？</h3>
     <p class="tip">
-      ① 点上方<b>「生成路线文件」</b>下载 JSON<br>
-      ② 把下载的文件放到和 <b>start_gps.bat</b> 同一个文件夹<br>
-      ③ 双击 <b>start_gps.bat</b> 启动 GPS 模拟<br>
-      ④ 打开支付宝校园跑开始打卡
+      打开 3uTools 后截图发过来，我根据你的界面告诉你具体点哪里。
     </p>
   </div>
 </div>
@@ -69,10 +85,10 @@ input:focus{outline:none;border-color:#58a6ff}
 <div id="map"></div>
 
 <script>
-const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20});
-const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,attribution:'Esri'});
+const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});
 const map=L.map('map',{layers:[sat]}).setView([30.5,114.3],17);
-L.control.layers({"🛰️ 卫星图":sat,"🗺️ 普通地图":osm},{},{position:'topright'}).addTo(map);
+L.control.layers({"卫星图（推荐）":sat,"普通地图":osm},{},{position:'topright'}).addTo(map);
 map.locate({setView:true,maxZoom:18});
 
 let waypoints=[],markers=[];
@@ -83,7 +99,11 @@ map.on('click',e=>addPt(e.latlng.lat,e.latlng.lng));
 
 function addPt(lat,lon){
   waypoints.push([lat,lon]);
-  markers.push(L.circleMarker([lat,lon],{radius:6,color:'#58a6ff',fillColor:'#fff',fillOpacity:1,weight:2}).bindTooltip(String(waypoints.length),{permanent:true,direction:'top',offset:[0,-6]}).addTo(map));
+  markers.push(
+    L.circleMarker([lat,lon],{radius:7,color:'#58a6ff',fillColor:'#fff',fillOpacity:1,weight:2})
+    .bindTooltip(String(waypoints.length),{permanent:true,direction:'top',offset:[0,-8]})
+    .addTo(map)
+  );
   refresh();
 }
 function undoLast(){if(!waypoints.length)return;waypoints.pop();map.removeLayer(markers.pop());refresh()}
@@ -93,61 +113,48 @@ function refresh(){
   trackLine.setLatLngs(waypoints.map(p=>L.latLng(p[0],p[1])));
   closeLine.setLatLngs(waypoints.length>=2?[waypoints[waypoints.length-1],waypoints[0]]:[]);
   document.getElementById('pt-count').textContent=waypoints.length;
-  document.getElementById('wp-list').innerHTML=waypoints.map((p,i)=>`<li>点${i+1}: ${p[0].toFixed(6)}, ${p[1].toFixed(6)}</li>`).join('');
-  calcLaps();
+  renderTable();
 }
 
-function hav(a,b){const R=6371000,r=Math.PI/180,p1=a[0]*r,p2=b[0]*r,dp=(b[0]-a[0])*r,dl=(b[1]-a[1])*r;return R*2*Math.atan2(Math.sqrt(Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2),Math.sqrt(1-(Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2)))}
-function perimeter(){if(waypoints.length<2)return 0;let t=0;for(let i=0;i<waypoints.length;i++)t+=hav(waypoints[i],waypoints[(i+1)%waypoints.length]);return t}
-
-function calcLaps(){
-  const p=perimeter();
-  document.getElementById('lap-est').textContent=p>0?Math.round(p):'—';
-  const d=parseFloat(document.getElementById('total-dist').value)||0;
-  const pace=parseFloat(document.getElementById('pace').value)||6.5;
-  if(p<10){document.getElementById('laps-result').textContent='—';document.getElementById('time-est').textContent='—';return}
-  const laps=Math.max(1,Math.round(d*1000/p));
-  document.getElementById('laps-result').textContent=`${laps} 圈（一圈 ${Math.round(p)}m）`;
-  const tm=d*pace;document.getElementById('time-est').textContent=`${Math.floor(tm)}分${Math.round((tm%1)*60)}秒`;
-}
-document.getElementById('total-dist').addEventListener('input',calcLaps);
-document.getElementById('pace').addEventListener('input',calcLaps);
-
-function buildPoints(){
-  if(waypoints.length<3){alert('请至少标记3个点');return null}
-  const d=parseFloat(document.getElementById('total-dist').value)||1.4;
-  const pace=parseFloat(document.getElementById('pace').value)||6.5;
-  const p=perimeter(),laps=Math.max(1,Math.round(d*1000/p)),speed=1000/(pace*60);
-  let pts=[],n=waypoints.length;
-  for(let lap=0;lap<laps;lap++){
-    for(let i=0;i<n;i++){
-      const a=waypoints[i],b=waypoints[(i+1)%n],seg=hav(a,b),steps=Math.max(2,Math.round(seg/speed));
-      for(let s=0;s<steps;s++){
-        const t=s/steps;
-        pts.push([a[0]+t*(b[0]-a[0])+(Math.random()-.5)*1.5e-5, a[1]+t*(b[1]-a[1])+(Math.random()-.5)*1.5e-5]);
-      }
-    }
+function renderTable(){
+  const tbody=document.getElementById('coord-body');
+  if(!waypoints.length){
+    tbody.innerHTML='<tr><td colspan="4" style="color:#484f58;padding:8px;text-align:center">先在地图上点几个点</td></tr>';
+    return;
   }
-  return {points:pts,laps:laps,distance_km:d,pace_min_km:pace,lap_m:Math.round(p)};
+  tbody.innerHTML=waypoints.map((p,i)=>`
+    <tr>
+      <td>点 ${i+1}</td>
+      <td>${p[0].toFixed(6)}</td>
+      <td>${p[1].toFixed(6)}</td>
+      <td><button class="copy-btn" id="cbtn${i}" onclick="copyRow(${i})">复制</button></td>
+    </tr>
+  `).join('');
 }
 
-function downloadFile(content,filename,type){
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=filename;a.click();URL.revokeObjectURL(a.href);
+function copyRow(i){
+  const p=waypoints[i];
+  const text=`${p[0].toFixed(6)},${p[1].toFixed(6)}`;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.getElementById('cbtn'+i);
+    btn.textContent='已复制';btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='复制';btn.classList.remove('ok')},1500);
+  }).catch(()=>{
+    prompt('请手动复制：',text);
+  });
 }
 
-function generateJSON(){
-  const data=buildPoints();if(!data)return;
-  downloadFile(JSON.stringify(data),'campus_route.json','application/json');
-  alert(`✅ 路线文件已下载！\n\n${data.laps}圈，${data.distance_km}km，配速${data.pace_min_km}min/km\n共${data.points.length}个GPS点（约${data.points.length}秒）\n\n请把 campus_route.json 放到 start_gps.bat 同一个文件夹里，然后双击 start_gps.bat`);
-}
-
-function generateGPX(){
-  const data=buildPoints();if(!data)return;
-  const now=new Date();
-  let gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="CampusRunSim" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>校园跑</name><trkseg>\n`;
-  data.points.forEach((p,i)=>{const t=new Date(now.getTime()+i*1000);gpx+=`<trkpt lat="${p[0].toFixed(8)}" lon="${p[1].toFixed(8)}"><time>${t.toISOString()}</time></trkpt>\n`});
-  gpx+=`</trkseg></trk></gpx>`;
-  downloadFile(gpx,`campus_run_${data.laps}laps.gpx`,'application/gpx+xml');
+function copyAll(){
+  if(!waypoints.length){alert('请先在地图上标记点');return}
+  const lines=waypoints.map((p,i)=>`点${i+1}: ${p[0].toFixed(6)}, ${p[1].toFixed(6)}`).join('\n');
+  const box=document.getElementById('all-coords-box');
+  box.style.display='block';
+  box.textContent=lines;
+  navigator.clipboard.writeText(lines).then(()=>{
+    alert('已复制到剪贴板！\n\n'+lines);
+  }).catch(()=>{
+    box.style.display='block';
+  });
 }
 </script>
 </body>
