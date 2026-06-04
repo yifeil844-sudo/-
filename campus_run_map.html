@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>校园跑 GPS 模拟器</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Microsoft YaHei",sans-serif; display:flex; height:100vh; overflow:hidden; background:#111; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width:310px; min-width:310px;
+  background:#0d1117; color:#e6edf3;
+  display:flex; flex-direction:column; gap:10px;
+  padding:14px; overflow-y:auto;
+}
+h1 { font-size:16px; color:#58a6ff; text-align:center; padding:4px 0 8px; border-bottom:1px solid #21262d; }
+.card { background:#161b22; border-radius:8px; padding:12px; border:1px solid #21262d; }
+.card h3 { font-size:13px; color:#79c0ff; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.tip { font-size:12px; color:#8b949e; line-height:1.7; }
+label { font-size:12px; color:#8b949e; display:block; margin:8px 0 3px; }
+input, select {
+  width:100%; padding:6px 9px;
+  border-radius:5px; border:1px solid #30363d;
+  background:#21262d; color:#e6edf3; font-size:13px;
+}
+input:focus { outline:none; border-color:#58a6ff; }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+/* Buttons */
+.btn { width:100%; padding:9px; border-radius:6px; border:none; font-size:13px; cursor:pointer; font-family:inherit; transition:filter .15s; }
+.btn:hover { filter:brightness(1.15); }
+.btn-green  { background:#238636; color:#fff; }
+.btn-red    { background:#b62324; color:#fff; }
+.btn-gray   { background:#21262d; color:#c9d1d9; border:1px solid #30363d; }
+.btn-blue   { background:#1f6feb; color:#fff; }
+
+/* Status */
+#status-box {
+  padding:9px 12px; border-radius:6px;
+  background:#161b22; border:1px solid #30363d;
+  font-size:13px; color:#58a6ff; line-height:1.6;
+  white-space:pre-wrap; min-height:36px;
+}
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.stat-item { background:#21262d; border-radius:5px; padding:7px 10px; }
+.stat-label { font-size:11px; color:#8b949e; }
+.stat-val { font-size:16px; color:#58a6ff; font-weight:bold; }
+
+/* Waypoint list */
+#wp-list { font-size:11px; color:#8b949e; max-height:80px; overflow-y:auto; margin-top:6px; }
+#wp-list li { padding:1px 0; list-style:none; }
+
+/* Map */
+#map { flex:1; }
+
+/* Layer control */
+.leaflet-control-layers { background:#161b22 !important; color:#e6edf3 !important; border:1px solid #30363d !important; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>🏃 校园跑 GPS 模拟器</h1>
+
+  <!-- Step 1 -->
+  <div class="card">
+    <h3>📍 第一步：在地图上画操场路线</h3>
+    <p class="tip">
+      地图默认显示卫星图。<br>
+      找到你的操场 → <b>沿跑道边缘依次点击 4~8 个点</b>（自动连成闭合路线）。<br>
+      点击右上角图层按钮可切换卫星/地图。
+    </p>
+    <label>已标记：<b id="pt-count">0</b> 个点&nbsp;&nbsp;
+      预计一圈：<b id="lap-est">—</b> 米
+    </label>
+    <ul id="wp-list"></ul>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
+      <button class="btn btn-gray" onclick="undoLast()">↩ 撤销上一点</button>
+      <button class="btn btn-gray" onclick="clearAll()">🗑 清除全部</button>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="card">
+    <h3>⚙️ 第二步：设置跑步参数</h3>
+    <div class="row2">
+      <div>
+        <label>总距离（公里）</label>
+        <input type="number" id="total-dist" value="1.4" step="0.1" min="0.4" oninput="calcLaps()">
+      </div>
+      <div>
+        <label>配速（分钟/公里）</label>
+        <input type="number" id="pace" value="6.5" step="0.1" min="3" max="15">
+      </div>
+    </div>
+    <label>计算圈数：<b id="laps-result">请先画路线</b></label>
+    <label style="margin-top:4px">预计时长：<b id="time-est">—</b></label>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="card">
+    <h3>📱 第三步：连接 iPhone</h3>
+    <p class="tip">
+      ① 用数据线连接 iPhone 和电脑<br>
+      ② iPhone 弹出「信任此电脑」→ 点<b>信任</b><br>
+      ③ <b>iOS 16+ 必须开启开发者模式：</b><br>
+      &nbsp;&nbsp;设置 → 隐私与安全 → 开发者模式 → 开启 → 重启<br>
+      ④ 确保已安装 iTunes（提供 USB 驱动）
+    </p>
+  </div>
+
+  <!-- Control buttons -->
+  <button class="btn btn-green" id="btn-start" onclick="startSim()">▶ 开始模拟 GPS</button>
+  <button class="btn btn-red"   id="btn-stop"  onclick="stopSim()" style="display:none">⏹ 停止模拟</button>
+
+  <!-- Status -->
+  <div id="status-box">就绪，等待开始</div>
+
+  <!-- Live stats -->
+  <div class="card" id="live-card" style="display:none">
+    <h3>📊 实时进度</h3>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="stat-label">当前圈 / 总圈</div><div class="stat-val" id="s-lap">—</div></div>
+      <div class="stat-item"><div class="stat-label">已跑距离</div><div class="stat-val" id="s-dist">—</div></div>
+      <div class="stat-item"><div class="stat-label">已用时间</div><div class="stat-val" id="s-time">—</div></div>
+      <div class="stat-item"><div class="stat-label">完成进度</div><div class="stat-val" id="s-prog">—</div></div>
+    </div>
+  </div>
+
+  <div style="font-size:11px;color:#484f58;text-align:center;padding-top:4px">
+    模拟期间请同时使用摇步器产生步频
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script>
+// ── Map ────────────────────────────────────────────────────
+const sat = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  {attribution:'© Esri', maxZoom:20}
+);
+const osm = L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {attribution:'© OSM', maxZoom:19}
+);
+
+const map = L.map('map', {layers:[sat]}).setView([30.5, 114.3], 17);
+L.control.layers({"🛰️ 卫星图（推荐）": sat, "🗺️ 普通地图": osm}, {}, {position:'topright'}).addTo(map);
+
+map.locate({setView:true, maxZoom:18});
+
+// ── Waypoints ──────────────────────────────────────────────
+let waypoints = [], markers = [];
+const trackLine   = L.polyline([], {color:'#58a6ff', weight:3}).addTo(map);
+const closingLine = L.polyline([], {color:'#f78166', weight:2, dashArray:'6 4'}).addTo(map);
+// Moving marker during simulation
+const runDot = L.circleMarker([0,0], {radius:8, color:'#3fb950', fillColor:'#3fb950', fillOpacity:1, weight:2});
+
+map.on('click', e => addPoint(e.latlng.lat, e.latlng.lng));
+
+function addPoint(lat, lon) {
+  waypoints.push([lat, lon]);
+  const m = L.circleMarker([lat, lon], {radius:6, color:'#58a6ff', fillColor:'#fff', fillOpacity:1, weight:2})
+    .bindTooltip(String(waypoints.length), {permanent:true, direction:'top', offset:[0,-6]})
+    .addTo(map);
+  markers.push(m);
+  redrawTrack();
+}
+
+function undoLast() {
+  if (!waypoints.length) return;
+  waypoints.pop();
+  map.removeLayer(markers.pop());
+  redrawTrack();
+}
+
+function clearAll() {
+  waypoints = [];
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  redrawTrack();
+}
+
+function redrawTrack() {
+  const pts = waypoints.map(p => L.latLng(p[0], p[1]));
+  trackLine.setLatLngs(pts);
+  if (waypoints.length >= 2) {
+    const last = waypoints[waypoints.length-1], first = waypoints[0];
+    closingLine.setLatLngs([[last[0],last[1]], [first[0],first[1]]]);
+  } else {
+    closingLine.setLatLngs([]);
+  }
+  updateLapEst();
+  calcLaps();
+  updateWpList();
+}
+
+function updateWpList() {
+  document.getElementById('pt-count').textContent = waypoints.length;
+  document.getElementById('wp-list').innerHTML = waypoints
+    .map((p,i) => `<li>点${i+1}：${p[0].toFixed(6)}, ${p[1].toFixed(6)}</li>`)
+    .join('');
+}
+
+// ── Lap estimation ─────────────────────────────────────────
+function haversineJS(a, b) {
+  const R = 6371000, toR = Math.PI/180;
+  const p1 = a[0]*toR, p2 = b[0]*toR;
+  const dp = (b[0]-a[0])*toR, dl = (b[1]-a[1])*toR;
+  const x = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+function trackPerimeter() {
+  if (waypoints.length < 2) return 0;
+  let total = 0;
+  const n = waypoints.length;
+  for (let i = 0; i < n; i++) total += haversineJS(waypoints[i], waypoints[(i+1)%n]);
+  return total;
+}
+
+function updateLapEst() {
+  const p = trackPerimeter();
+  document.getElementById('lap-est').textContent = p > 0 ? Math.round(p) : '—';
+}
+
+function calcLaps() {
+  const totalKm = parseFloat(document.getElementById('total-dist').value) || 0;
+  const pace    = parseFloat(document.getElementById('pace').value) || 6.5;
+  const peri    = trackPerimeter();
+
+  if (peri < 10) {
+    document.getElementById('laps-result').textContent = '请先在地图上画操场路线';
+    document.getElementById('time-est').textContent = '—';
+    return;
+  }
+
+  const laps = Math.max(1, Math.round((totalKm * 1000) / peri));
+  document.getElementById('laps-result').textContent = `${laps} 圈（操场一圈约 ${Math.round(peri)} 米）`;
+
+  const totalMin = totalKm * pace;
+  const mins = Math.floor(totalMin), secs = Math.round((totalMin - mins) * 60);
+  document.getElementById('time-est').textContent = `约 ${mins} 分 ${secs} 秒`;
+}
+
+document.getElementById('total-dist').addEventListener('input', calcLaps);
+document.getElementById('pace').addEventListener('input', calcLaps);
+
+// ── Simulation ─────────────────────────────────────────────
+let statusTimer = null;
+let lastRunLat = 0, lastRunLon = 0;
+
+function startSim() {
+  if (waypoints.length < 3) { alert('请至少标记 3 个点'); return; }
+
+  const peri  = trackPerimeter();
+  const total = parseFloat(document.getElementById('total-dist').value);
+  const pace  = parseFloat(document.getElementById('pace').value);
+  const laps  = Math.max(1, Math.round((total * 1000) / peri));
+
+  fetch('/start', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({waypoints, laps, pace})
+  }).then(r => r.json()).then(d => {
+    if (d.error) { alert(d.error); return; }
+    document.getElementById('btn-start').style.display = 'none';
+    document.getElementById('btn-stop').style.display  = 'block';
+    document.getElementById('live-card').style.display = 'block';
+    runDot.addTo(map);
+    statusTimer = setInterval(pollStatus, 1500);
+  });
+}
+
+function stopSim() {
+  fetch('/stop', {method:'POST'}).then(() => resetUI());
+}
+
+function resetUI() {
+  clearInterval(statusTimer);
+  document.getElementById('btn-start').style.display = 'block';
+  document.getElementById('btn-stop').style.display  = 'none';
+  map.removeLayer(runDot);
+}
+
+function pollStatus() {
+  fetch('/status').then(r => r.json()).then(s => {
+    document.getElementById('status-box').textContent = s.status_msg || '';
+
+    const m = Math.floor(s.elapsed_s/60), sec = s.elapsed_s%60;
+    document.getElementById('s-lap').textContent  = `${s.lap} / ${s.total_laps}`;
+    document.getElementById('s-dist').textContent = `${(s.distance_m/1000).toFixed(2)} km`;
+    document.getElementById('s-time').textContent = `${m}分${String(sec).padStart(2,'0')}秒`;
+    document.getElementById('s-prog').textContent = `${s.progress||0}%`;
+
+    if (!s.running && s.progress >= 99) resetUI();
+  });
+}
+</script>
+</body>
+</html>
